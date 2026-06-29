@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ล่าคำสัมผัส</title>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body { font-family: 'Mali', cursive; background: linear-gradient(180deg, #87CEEB 0%, #E0B0FF 100%); color: #333; overflow: hidden; height: 100vh; width: 100vw; touch-action: none; }
+        body.shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(4px, 0, 0); } }
+        .bg-decor { position: fixed; z-index: 0; pointer-events: none; opacity: 0.6; }
+        .cloud { background: white; border-radius: 50px; position: absolute; animation: floatCloud 20s linear infinite; }
+        @keyframes floatCloud { from { transform: translateX(110vw); } to { transform: translateX(-30vw); } }
+        .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; background: inherit; }
+        .screen.active { display: flex; }
+        #game-screen { background: transparent; z-index: 10; pointer-events: none; }
+        .panel { background: rgba(255, 255, 255, 0.95); padding: 25px; border-radius: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); text-align: center; max-width: 90%; width: 400px; max-height: 90vh; overflow-y: auto; border: 4px solid #fff; }
+        h1.game-title { font-size: 2.2rem; color: #FF1493; text-shadow: 2px 2px 0px #FFF; margin-bottom: 10px; }
+        input[type="text"], select, input[type="number"] { width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #E0B0FF; border-radius: 12px; font-family: inherit; text-align: center; }
+        .btn { background: #FF69B4; color: white; border: none; padding: 12px 20px; font-size: 1.2rem; border-radius: 30px; cursor: pointer; font-family: inherit; font-weight: bold; margin: 8px; }
+        #bubbleArea { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; touch-action: none; }
+        .bubble { position: absolute; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; cursor: pointer; border: 2px solid rgba(255,255,255,0.5); }
+        #game-hud { position: fixed; top: 0; left: 0; width: 100%; z-index: 50; pointer-events: none; display: flex; justify-content: space-between; padding: 15px 20px; }
+        .hud-box { background: rgba(255, 255, 255, 0.9); padding: 10px 20px; border-radius: 20px; font-weight: bold; }
+        #countdown-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 150; display: none; justify-content: center; align-items: center; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-decor" style="top: 10%; left: -10vw;"><div class="cloud" style="width: 100px; height: 30px;"></div></div>
+    <div id="bubbleArea"></div>
+
+    <div id="game-hud" style="display: none;">
+        <div class="hud-box">⏱ <span id="time-display">60</span>s</div>
+        <div class="hud-box">⭐ <span id="score-display">0</span></div>
+    </div>
+    
+    <div id="target-container" style="display: none;">
+        <div id="target-word" style="background: white; color: #6A5ACD; font-size: 2.5rem; font-weight: bold; padding: 10px 40px; border-radius: 25px; border: 4px solid #FFB6C1;"></div>
+    </div>
+
+    <div id="countdown-overlay"><div id="countdown-text" style="font-size: 8rem; color: white;">3</div></div>
+
+    <div id="home-screen" class="screen active">
+        <div class="panel">
+            <h1 class="game-title" id="ui-game-name">🎤 ล่าคำสัมผัส</h1>
+            <input type="text" id="player-name" placeholder="ชื่อนักเรียน..." autocomplete="off">
+            <button class="btn" onclick="btnStartGame()">▶️ เริ่มเล่นเกม</button>
+            <button class="btn" onclick="showScreen('settings-screen')">⚙️ ตั้งค่า</button>
+        </div>
+    </div>
+
+    <div id="summary-screen" class="screen">
+        <div class="panel">
+            <h1>จบเกม!</h1>
+            <button class="btn" onclick="showScreen('home-screen')">🏠 กลับหน้าแรก</button>
+        </div>
+    </div>
+
+    <div id="settings-screen" class="screen">
+        <div class="panel">
+            <h1>ตั้งค่า</h1>
+            <button class="btn" onclick="showScreen('home-screen')">❌ ปิด</button>
+        </div>
+    </div>
+
+    <script>
+        let appData = { teacher: "ครูอุ้ม", school: "โรงเรียนน่าอยู่", gameName: "🎤 ล่าคำสัมผัส", time: 60, words: [{target: "นา", correct: ["ตา","ปลา"], wrong: ["หมู"]}] };
+        let gameState = { isRunning: false, timeLeft: 0, bubbles: [] };
+
+        function showScreen(screenId) {
+            const screens = document.querySelectorAll('.screen');
+            screens.forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(screenId);
+            if(target) target.classList.add('active');
+            
+            if(screenId === 'game-screen') {
+                document.getElementById('game-hud').style.display = 'flex';
+                document.getElementById('target-container').style.display = 'block';
+            } else {
+                document.getElementById('game-hud').style.display = 'none';
+                document.getElementById('target-container').style.display = 'none';
+            }
+        }
+
+        function btnStartGame() {
+            if(!document.getElementById('player-name').value) return alert('กรอกชื่อก่อน!');
+            showScreen('game-screen');
+            gameState.isRunning = true;
+            document.getElementById('countdown-overlay').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('countdown-overlay').style.display = 'none';
+                document.getElementById('target-word').textContent = appData.words[0].target;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
